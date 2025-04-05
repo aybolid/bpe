@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Token {
     Lonely(Lonely),
     Pair(Pair),
@@ -13,7 +13,7 @@ impl Token {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Lonely(pub u32);
 
 impl Lonely {
@@ -26,7 +26,7 @@ impl Lonely {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Pair {
     pub left: u32,
     pub right: u32,
