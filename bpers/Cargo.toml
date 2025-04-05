@@ -1,7 +1,6 @@
 [package]
-name = "bpe"
+name = "bpers"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bpers = { path = "bpers" }

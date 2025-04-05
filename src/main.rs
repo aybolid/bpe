@@ -1,3 +1,7 @@
+use bpers;
+
 fn main() {
-    println!("Hello, world!");
+    let input = "aaabdaaabac";
+    let mut map = bpers::PairMap::with_ascii_prelude();
+    map.learn(&[input]);
 }
