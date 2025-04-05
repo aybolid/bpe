@@ -1,25 +1,30 @@
 use std::collections::HashMap;
 
-use crate::TokenPair;
+use crate::{Lonely, Pair, Token};
 
 #[derive(Debug)]
 pub struct PairMap {
-    map: HashMap<u32, TokenPair>,
+    map: HashMap<u32, Token>,
 }
 
 impl PairMap {
     pub const ASCII_PRELUDE_SIZE: usize = 256;
 
-    pub fn new(map: HashMap<u32, TokenPair>) -> Self {
+    /// Creates a new `PairMap` with provided `HashMap`.
+    ///
+    /// # Arguments
+    /// * `map` - The HashMap containing the token pairs.
+    pub fn new(map: HashMap<u32, Token>) -> Self {
         Self { map }
     }
 
+    /// Creates a new `PairMap` with an ASCII prelude tokens.
     pub fn with_ascii_prelude() -> Self {
         let mut pair_map = Self::new(HashMap::new());
         let prelude = gen_ascii_prelude();
 
-        for pair in prelude.into_iter() {
-            pair_map.map.insert(pair.left, pair);
+        for token in prelude.into_iter() {
+            pair_map.map.insert(token.0, token.as_token());
         }
 
         pair_map
@@ -29,18 +34,18 @@ impl PairMap {
         let mut tokenized_input: Vec<u32> = corpus.chars().map(|char| char as u32).collect();
         for token in &tokenized_input {
             if !self.map.contains_key(&token) {
-                let single_token = TokenPair::new_single(*token);
-                self.map.insert(*token, single_token);
+                let lonely = Lonely::new(*token).as_token();
+                self.map.insert(*token, lonely);
             }
         }
 
         let mut next_token_id = (self.map.len() + 1) as u32;
 
         for _ in 0..n_merges {
-            let mut adjacent_pair_freq: HashMap<TokenPair, usize> = HashMap::new();
+            let mut adjacent_pair_freq: HashMap<Pair, usize> = HashMap::new();
 
             for pair in tokenized_input.windows(2) {
-                let token_pair = TokenPair::new(pair[0], pair[1]);
+                let token_pair = Pair::new(pair[0], pair[1]);
 
                 adjacent_pair_freq
                     .entry(token_pair)
@@ -57,7 +62,7 @@ impl PairMap {
                 break;
             }
 
-            self.map.insert(next_token_id, most_freq_pair);
+            self.map.insert(next_token_id, most_freq_pair.as_token());
 
             let mut updated_tokens =
                 Vec::with_capacity(tokenized_input.len().saturating_sub(pair_freq));
@@ -66,7 +71,7 @@ impl PairMap {
             while i + 1 < tokenized_input.len() {
                 let left = tokenized_input[i];
                 let right = tokenized_input[i + 1];
-                if left == most_freq_pair.left && Some(right) == most_freq_pair.right {
+                if left == most_freq_pair.left && right == most_freq_pair.right {
                     updated_tokens.push(next_token_id);
                     i += 2;
                 } else {
@@ -88,11 +93,11 @@ impl PairMap {
     }
 }
 
-fn gen_ascii_prelude() -> Box<[TokenPair; PairMap::ASCII_PRELUDE_SIZE]> {
-    let mut prelude = Box::new([TokenPair::new_single(0); PairMap::ASCII_PRELUDE_SIZE]);
+fn gen_ascii_prelude() -> Box<[Lonely; PairMap::ASCII_PRELUDE_SIZE]> {
+    let mut prelude = Box::new([Lonely::new(0); PairMap::ASCII_PRELUDE_SIZE]);
 
-    for (i, pair) in prelude.iter_mut().enumerate().skip(1) {
-        *pair = TokenPair::new_single(i as u32)
+    for (i, token) in prelude.iter_mut().enumerate().skip(1) {
+        *token = Lonely::new(i as u32)
     }
 
     prelude
@@ -111,7 +116,7 @@ mod tests {
     }
 
     #[test]
-    /// https://en.wikipedia.org/wiki/Byte_pair_encoding#Example
+    // https://en.wikipedia.org/wiki/Byte_pair_encoding#Example
     fn bpe_tokenize_aaabdaaabac() {
         let corpus = "aaabdaaabac";
         let mut map = PairMap::new(HashMap::new());
