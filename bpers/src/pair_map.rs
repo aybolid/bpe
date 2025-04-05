@@ -8,26 +8,11 @@ pub struct Vocabulary {
 }
 
 impl Vocabulary {
-    pub const ASCII_PRELUDE_SIZE: usize = 256;
-
-    /// Creates a new `Vocabulary` with provided `HashMap`.
-    ///
-    /// # Arguments
-    /// * `map` - The HashMap containing the token pairs.
-    pub fn new(map: HashMap<u32, Token>) -> Self {
-        Self { map }
-    }
-
-    /// Creates a new `Vocabulary` with an ASCII prelude tokens.
-    pub fn with_ascii_prelude() -> Self {
-        let mut vocabulary = Self::new(HashMap::new());
-        let prelude = gen_ascii_prelude();
-
-        for token in prelude.into_iter() {
-            vocabulary.map.insert(token.0, token.as_token());
+    /// Creates a new `Vocabulary`.
+    pub fn new() -> Self {
+        Self {
+            map: HashMap::new(),
         }
-
-        vocabulary
     }
 
     /// Learns vocabulary from a given corpus.
@@ -101,16 +86,6 @@ impl Vocabulary {
     }
 }
 
-fn gen_ascii_prelude() -> Box<[Lonely; Vocabulary::ASCII_PRELUDE_SIZE]> {
-    let mut prelude = Box::new([Lonely::new(0); Vocabulary::ASCII_PRELUDE_SIZE]);
-
-    for (i, token) in prelude.iter_mut().enumerate().skip(1) {
-        *token = Lonely::new(i as u32)
-    }
-
-    prelude
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
@@ -118,16 +93,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn with_prelude() {
-        let vocabulary = Vocabulary::with_ascii_prelude();
-        assert_eq!(vocabulary.map.len(), Vocabulary::ASCII_PRELUDE_SIZE)
-    }
-
-    #[test]
     // https://en.wikipedia.org/wiki/Byte_pair_encoding#Example
     fn bpe_tokenize_aaabdaaabac() {
         let corpus = "aaabdaaabac";
-        let mut vocabulary = Vocabulary::new(HashMap::new());
+        let mut vocabulary = Vocabulary::new();
 
         let max_n_merges_possible = 3;
         // passing higher n_merges doesnt matter here as only 3 merges are possible
