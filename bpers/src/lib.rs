@@ -1,7 +1,7 @@
-//! BPErs
-
-mod pair_map;
+mod bpe;
 mod token_pair;
+mod vocabulary;
 
-pub use pair_map::*;
+pub use bpe::*;
 pub use token_pair::*;
+pub use vocabulary::*;
