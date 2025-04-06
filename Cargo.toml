@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["bpers"]
+dependencies = { hashbrown = "0.15.2" }
 
 [package]
 name = "bpe"
