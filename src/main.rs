@@ -62,9 +62,11 @@ fn main() {
             };
 
             _ = vocab.learn(&input, n_merges);
-            let encoded = bpers::encode(&input, &vocab);
+            let encoded = bpers::encode(&input, &vocab).unwrap();
+            let decoded = bpers::decode(&encoded, &vocab).unwrap();
+            println!("{decoded}");
 
-            save_as_txt(&encoded, &out);
+            // save_as_txt(&encoded, &out);
         }
     };
 }
