@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{collections::HashMap, time::Instant};
 
 use crate::{Lonely, Pair, Token};
 
@@ -25,8 +25,10 @@ impl Vocabulary {
     /// An artifact of the learning process. Basically, it returns an encoded input corpus.
     pub fn learn(&mut self, corpus: &str, n_merges: u32) -> Vec<u32> {
         let mut tokens: Vec<u32> = corpus.chars().map(|char| char as u32).collect();
+
+        // Initialize vocabulary with single characters
         for token in &tokens {
-            if !self.map.contains_key(&token) {
+            if !self.map.contains_key(token) {
                 let lonely = Lonely::new(*token).as_token();
                 self.map.insert(*token, lonely);
             }
@@ -34,52 +36,46 @@ impl Vocabulary {
 
         let mut next_token_id = (self.map.len() + 1) as u32;
 
-        for _ in 0..n_merges {
-            // using b tree map for deterministic results
-            let mut adjacent_pair_freq: BTreeMap<Pair, usize> = BTreeMap::new();
-
-            for pair in tokens.windows(2) {
-                let token_pair = Pair::new(pair[0], pair[1]);
-
-                adjacent_pair_freq
-                    .entry(token_pair)
-                    .and_modify(|freq| *freq += 1)
-                    .or_insert(1);
+        for n_merge in 0..n_merges {
+            let start_time = Instant::now();
+            let mut adjacent_pair_freq: HashMap<Pair, usize> = HashMap::new();
+            for window in tokens.windows(2) {
+                let token_pair = Pair::new(window[0], window[1]);
+                *adjacent_pair_freq.entry(token_pair).or_insert(0) += 1;
             }
 
-            let (most_freq_pair, pair_freq) = adjacent_pair_freq
-                .into_iter()
-                .max_by_key(|(_, freq)| *freq)
-                .expect("seems impossible to me that this thing will be None :)");
+            // Find most frequent pair
+            match adjacent_pair_freq.into_iter().max_by_key(|(_, freq)| *freq) {
+                Some((most_freq_pair, pair_freq)) if pair_freq > 1 => {
+                    self.map.insert(next_token_id, most_freq_pair.as_token());
 
-            if pair_freq == 1 {
-                break;
-            }
+                    let mut updated_tokens = Vec::with_capacity(tokens.len());
+                    let mut i = 0;
+                    while i < tokens.len() {
+                        if i + 1 < tokens.len()
+                            && tokens[i] == most_freq_pair.left
+                            && tokens[i + 1] == most_freq_pair.right
+                        {
+                            updated_tokens.push(next_token_id);
+                            i += 2;
+                        } else {
+                            updated_tokens.push(tokens[i]);
+                            i += 1;
+                        }
+                    }
 
-            self.map.insert(next_token_id, most_freq_pair.as_token());
+                    tokens = updated_tokens;
+                    next_token_id += 1;
 
-            let mut updated_tokens = Vec::with_capacity(tokens.len().saturating_sub(pair_freq));
-
-            let mut i = 0;
-            while i + 1 < tokens.len() {
-                let left = tokens[i];
-                let right = tokens[i + 1];
-                if left == most_freq_pair.left && right == most_freq_pair.right {
-                    updated_tokens.push(next_token_id);
-                    i += 2;
-                } else {
-                    updated_tokens.push(left);
-                    i += 1;
+                    if (n_merge + 1) % 10 == 0 {
+                        println!("Merge #{}", n_merge + 1);
+                        println!("\tMerge took: {:>22?}", start_time.elapsed());
+                        println!("\tTokenized input size: {:>12}", tokens.len());
+                        println!("\tVocabulary size: {:>17}", self.map.len());
+                    }
                 }
+                _ => break, // No pairs with frequency > 1, stop merging
             }
-
-            if i < tokens.len() {
-                // if there’s one token left at the end, push it
-                updated_tokens.push(tokens[i]);
-            }
-
-            tokens = updated_tokens;
-            next_token_id += 1;
         }
 
         tokens
