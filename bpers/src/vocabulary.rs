@@ -1,12 +1,18 @@
-use hashbrown::HashMap;
 use std::time::Instant;
+
+use foldhash::{HashMap, HashMapExt};
+use indexmap::IndexMap;
 
 use crate::{Lonely, Pair, Token};
 
+type FoldIndexMap<K, V> = IndexMap<K, V, foldhash::fast::FixedState>;
+
 #[derive(Debug)]
 pub struct Vocabulary {
+    /// A recursive map that represents learned vocabulary.
     pub id_to_token: HashMap<u32, Token>,
     pub token_pair_to_id: HashMap<Pair, u32>,
+    next_token_id: u32,
 }
 
 impl Vocabulary {
@@ -15,6 +21,7 @@ impl Vocabulary {
         Self {
             id_to_token: HashMap::new(),
             token_pair_to_id: HashMap::new(),
+            next_token_id: 0,
         }
     }
 
@@ -25,7 +32,7 @@ impl Vocabulary {
     /// * `n_merges` - The max number of merges to perform.
     ///
     /// # Returns
-    /// An artifact of the learning process. Basically, it returns an encoded input corpus.
+    /// An artifact of the learning process. Basically, it returns a byte pair encoded `corpus`.
     pub fn learn(&mut self, corpus: &str, n_merges: u32) -> Vec<u32> {
         let mut max_char = 0;
         let mut tokens: Vec<u32> = corpus
@@ -38,6 +45,9 @@ impl Vocabulary {
                 char_u32
             })
             .collect();
+        if self.next_token_id == 0 {
+            self.next_token_id = max_char + 1;
+        }
 
         // Initialize vocabulary with single characters
         for token in &tokens {
@@ -47,11 +57,11 @@ impl Vocabulary {
             }
         }
 
-        let mut next_token_id = max_char + 1;
-
         for n_merge in 0..n_merges {
             let start_time = Instant::now();
-            let mut adjacent_pair_freq: HashMap<Pair, usize> = HashMap::new();
+
+            // index map for deterministic ordering
+            let mut adjacent_pair_freq: FoldIndexMap<Pair, usize> = FoldIndexMap::default();
             for window in tokens.windows(2) {
                 let token_pair = Pair::new(window[0], window[1]);
                 *adjacent_pair_freq.entry(token_pair).or_insert(0) += 1;
@@ -60,8 +70,9 @@ impl Vocabulary {
             match adjacent_pair_freq.into_iter().max_by_key(|(_, freq)| *freq) {
                 Some((most_freq_pair, pair_freq)) if pair_freq > 1 => {
                     self.id_to_token
-                        .insert(next_token_id, most_freq_pair.as_token());
-                    self.token_pair_to_id.insert(most_freq_pair, next_token_id);
+                        .insert(self.next_token_id, most_freq_pair.as_token());
+                    self.token_pair_to_id
+                        .insert(most_freq_pair, self.next_token_id);
 
                     let mut updated_tokens = Vec::with_capacity(tokens.len());
                     let mut i = 0;
@@ -70,7 +81,7 @@ impl Vocabulary {
                             && tokens[i] == most_freq_pair.left
                             && tokens[i + 1] == most_freq_pair.right
                         {
-                            updated_tokens.push(next_token_id);
+                            updated_tokens.push(self.next_token_id);
                             i += 2;
                         } else {
                             updated_tokens.push(tokens[i]);
@@ -79,7 +90,7 @@ impl Vocabulary {
                     }
 
                     tokens = updated_tokens;
-                    next_token_id += 1;
+                    self.next_token_id += 1;
 
                     if (n_merge + 1) % 10 == 0 {
                         println!("Merge #{}", n_merge + 1);
@@ -88,7 +99,10 @@ impl Vocabulary {
                         println!("\tVocabulary size: {:>17}", self.id_to_token.len());
                     }
                 }
-                _ => break, // No pairs with frequency > 1, stop merging
+                _ => {
+                    println!("No pairs with frequency > 1 after {n_merge} merges, stop learning");
+                    break;
+                }
             }
         }
 

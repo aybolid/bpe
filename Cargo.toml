@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["bpers"]
-dependencies = { hashbrown = "0.15.2" }
+dependencies = { indexmap = "2.9.0", foldhash = "0.1.5" }
 
 [package]
 name = "bpe"
@@ -10,3 +10,4 @@ edition = "2024"
 
 [dependencies]
 bpers = { path = "bpers" }
+clap = { version = "4.5.35", features = ["derive"] }

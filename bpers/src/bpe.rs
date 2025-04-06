@@ -63,6 +63,6 @@ pub fn decode(encoded: &[u32], vocab: &Vocabulary) -> String {
     // Convert final code points to characters
     encoded_vec
         .iter()
-        .map(|&char_u32| char::from_u32(char_u32).unwrap())
+        .map(|&char_u32| char::from_u32(char_u32).expect("contains valid char u32"))
         .collect()
 }
