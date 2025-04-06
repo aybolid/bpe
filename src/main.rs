@@ -7,6 +7,9 @@ use clap::{Parser, Subcommand};
 
 use bpers::{self, Vocabulary};
 
+const DEFAULT_N_MERGES: u32 = 2000;
+
+/// BPE - byte pair encoding
 #[derive(Debug, Parser)]
 struct Cli {
     #[command(subcommand)]
@@ -15,10 +18,15 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum CliCommand {
+    /// Perform text encoding
     Encode {
+        /// Either a string or a path to an existing text file
         #[arg(value_parser = PathyString::parse)]
         input: PathyString,
+        /// Output file for encoded text
         out: PathBuf,
+        /// Max number of merges to perform during vocabulary learning
+        #[arg(short = 'm', long = "merges", default_value_t = DEFAULT_N_MERGES)]
         n_merges: u32,
     },
 }
@@ -55,7 +63,6 @@ fn main() {
             n_merges,
         } => {
             let mut vocab = Vocabulary::new();
-
             let input = match input {
                 PathyString::Path(path) => std::fs::read_to_string(path).unwrap(),
                 PathyString::String(str) => str,
@@ -63,10 +70,11 @@ fn main() {
 
             _ = vocab.learn(&input, n_merges);
             let encoded = bpers::encode(&input, &vocab).unwrap();
-            let decoded = bpers::decode(&encoded, &vocab).unwrap();
-            println!("{decoded}");
 
-            // save_as_txt(&encoded, &out);
+            println!("Input size:   {}", input.len());
+            println!("Encoded size: {}", encoded.len());
+
+            save_as_txt(&encoded, &out);
         }
     };
 }

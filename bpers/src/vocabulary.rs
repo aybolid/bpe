@@ -49,7 +49,6 @@ impl Vocabulary {
             self.next_token_id = max_char + 1;
         }
 
-        // Initialize vocabulary with single characters
         for token in &tokens {
             if !self.id_to_token.contains_key(token) {
                 let lonely = Lonely::new(*token).as_token();
@@ -94,13 +93,13 @@ impl Vocabulary {
 
                     if (n_merge + 1) % 10 == 0 {
                         println!("Merge #{}", n_merge + 1);
-                        println!("\tMerge took: {:>22?}", start_time.elapsed());
-                        println!("\tTokenized input size: {:>12}", tokens.len());
-                        println!("\tVocabulary size: {:>17}", self.id_to_token.len());
+                        println!("\tMerge took:           {:?}", start_time.elapsed());
+                        println!("\tTokenized input size: {}", tokens.len());
+                        println!("\tVocabulary size:      {}", self.id_to_token.len());
                     }
                 }
                 _ => {
-                    println!("No pairs with frequency > 1 after {n_merge} merges, stop learning");
+                    println!("No pairs with frequency > 1 after {n_merge} merges, stop learning\n");
                     break;
                 }
             }
