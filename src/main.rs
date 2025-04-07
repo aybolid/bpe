@@ -30,7 +30,7 @@ enum CliCommand {
         #[arg(required = true, num_args = 1..)]
         input: Vec<PathBuf>,
         /// Output file for vocabulary
-        #[arg(short = '0', long="out", default_value = DEFAULT_VOCAB_OUT)]
+        #[arg(short = 'o', long="out", default_value = DEFAULT_VOCAB_OUT)]
         out: PathBuf,
         /// Max number of merges to perform during vocabulary learning
         #[arg(short = 'm', long = "merges", default_value_t = DEFAULT_N_MERGES)]
