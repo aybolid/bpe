@@ -26,11 +26,10 @@ struct Cli {
 enum CliCommand {
     /// Learn a vocabulary from a corpus
     Learn {
-        /// Either a string or a path to an existing text file
-        #[arg(value_parser = PathyString::parse)]
-        input: PathyString,
+        /// Path to an existing text file(s)
+        input: Vec<PathBuf>,
         /// Output file for vocabulary
-        #[arg(default_value = DEFAULT_VOCAB_OUT)]
+        #[arg(short = '0', long="out", default_value = DEFAULT_VOCAB_OUT)]
         out: PathBuf,
         /// Max number of merges to perform during vocabulary learning
         #[arg(short = 'm', long = "merges", default_value_t = DEFAULT_N_MERGES)]
@@ -98,16 +97,23 @@ fn main() {
             n_merges,
         } => {
             let mut vocab = Vocabulary::new();
-            let input = match input {
-                PathyString::Path(path) => match std::fs::read_to_string(path) {
+
+            if input.is_empty() {
+                eprintln!("No input files provided");
+                std::process::exit(1);
+            }
+
+            let input = input
+                .iter()
+                .map(|path| match std::fs::read_to_string(path) {
                     Ok(contents) => contents,
                     Err(err) => {
-                        eprintln!("Failed to load file contents: {err}");
+                        eprintln!("Failed to load {} contents: {err}", path.display());
                         std::process::exit(1);
                     }
-                },
-                PathyString::String(str) => str,
-            };
+                })
+                .collect::<Vec<String>>()
+                .join(" ");
 
             println!("Learning");
             _ = vocab.learn(&input, n_merges);
