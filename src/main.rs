@@ -27,6 +27,7 @@ enum CliCommand {
     /// Learn a vocabulary from a corpus
     Learn {
         /// Path to an existing text file(s)
+        #[arg(required = true, num_args = 1..)]
         input: Vec<PathBuf>,
         /// Output file for vocabulary
         #[arg(short = '0', long="out", default_value = DEFAULT_VOCAB_OUT)]
@@ -97,11 +98,6 @@ fn main() {
             n_merges,
         } => {
             let mut vocab = Vocabulary::new();
-
-            if input.is_empty() {
-                eprintln!("No input files provided");
-                std::process::exit(1);
-            }
 
             let input = input
                 .iter()
