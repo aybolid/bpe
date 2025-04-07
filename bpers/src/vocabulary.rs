@@ -1,5 +1,6 @@
 use std::time::Instant;
 
+use bincode::{Decode, Encode};
 use foldhash::{HashMap, HashMapExt};
 use indexmap::IndexMap;
 
@@ -7,7 +8,7 @@ use crate::{Lonely, Pair, Token};
 
 type FoldIndexMap<K, V> = IndexMap<K, V, foldhash::fast::FixedState>;
 
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub struct Vocabulary {
     /// A recursive map that represents learned vocabulary.
     pub id_to_token: HashMap<u32, Token>,
