@@ -1,4 +1,16 @@
+use thiserror::Error;
+
 use crate::{Pair, Token, Vocabulary};
+
+#[derive(Error, Debug)]
+pub enum EncodingError {
+    #[error("Input contains character '{char}' (code {code}) which is not in the vocabulary.")]
+    CharNotInVocab { char: String, code: u32 },
+    #[error("Invalid UTF-32 character (code: {code})")]
+    InvalidChar { code: u32 },
+    #[error("Unknown token with code {code}")]
+    UnknownToken { code: u32 },
+}
 
 /// Encodes an input string into a sequence of token IDs using a pre-learned vocabulary.
 ///
@@ -10,17 +22,16 @@ use crate::{Pair, Token, Vocabulary};
 ///
 /// # Returns
 /// A `Vec<u32>` representing the encoded token sequence, or an error if unknown characters are encountered.
-pub fn encode(input: &str, vocab: &Vocabulary) -> Result<Vec<u32>, String> {
+pub fn encode(input: &str, vocab: &Vocabulary) -> Result<Vec<u32>, EncodingError> {
     let mut tokens: Vec<u32> = input.chars().map(|c| c as u32).collect();
 
     for &token_id in &tokens {
         if !vocab.id_to_token.contains_key(&token_id) {
-            return Err(format!(
-                "Input contains character '{}' (code {}) which is not in the initial vocabulary.",
-                std::char::from_u32(token_id)
+            return Err(EncodingError::CharNotInVocab {
+                char: char::from_u32(token_id)
                     .map_or_else(|| "Invalid UTF-32".to_string(), |c| c.to_string()),
-                token_id
-            ));
+                code: token_id,
+            });
         }
     }
 
@@ -70,7 +81,7 @@ pub fn encode(input: &str, vocab: &Vocabulary) -> Result<Vec<u32>, String> {
 /// # Returns
 /// The decoded `String`, or an error if an unknown token ID is encountered or
 /// if a token ID cannot be represented as a valid character.
-pub fn decode(token_ids: &[u32], vocab: &Vocabulary) -> Result<String, String> {
+pub fn decode(token_ids: &[u32], vocab: &Vocabulary) -> Result<String, EncodingError> {
     let mut decoded_chars: Vec<char> = Vec::new();
 
     for &id in token_ids {
@@ -80,10 +91,7 @@ pub fn decode(token_ids: &[u32], vocab: &Vocabulary) -> Result<String, String> {
                 Some(Token::Lonely(lonely)) => match std::char::from_u32(lonely.0) {
                     Some(c) => decoded_chars.push(c),
                     None => {
-                        return Err(format!(
-                            "Failed to decode token ID {} into a valid character.",
-                            lonely.0
-                        ));
+                        return Err(EncodingError::InvalidChar { code: lonely.0 });
                     }
                 },
                 Some(Token::Pair(pair)) => {
@@ -92,10 +100,7 @@ pub fn decode(token_ids: &[u32], vocab: &Vocabulary) -> Result<String, String> {
                     decoding_stack.push(pair.left);
                 }
                 None => {
-                    return Err(format!(
-                        "Unknown token ID {} encountered during decoding.",
-                        current_id
-                    ));
+                    return Err(EncodingError::UnknownToken { code: current_id });
                 }
             }
         }

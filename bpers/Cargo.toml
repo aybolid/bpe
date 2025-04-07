@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-indexmap = { workspace = true }
-foldhash = { workspace = true }
-bincode = { workspace = true }
+indexmap.workspace = true
+foldhash.workspace = true
+bincode.workspace = true
+thiserror.workspace = true

@@ -5,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use bpers::{self, Vocabulary};
@@ -98,7 +99,13 @@ fn main() {
         } => {
             let mut vocab = Vocabulary::new();
             let input = match input {
-                PathyString::Path(path) => std::fs::read_to_string(path).unwrap(),
+                PathyString::Path(path) => match std::fs::read_to_string(path) {
+                    Ok(contents) => contents,
+                    Err(err) => {
+                        eprintln!("Failed to load file contents: {err}");
+                        std::process::exit(1);
+                    }
+                },
                 PathyString::String(str) => str,
             };
 
@@ -107,7 +114,9 @@ fn main() {
             println!("\nLearned vocabulary size: {}", vocab.id_to_token.len());
             println!("Amount of merged tokens: {}", vocab.token_pair_to_id.len());
 
-            save_vocab(&vocab, &out);
+            if let Err(err) = save_vocab(&vocab, &out) {
+                eprintln!("Failed to save vocabulary: {err}");
+            };
         }
         CliCommand::Encode {
             input,
@@ -117,20 +126,39 @@ fn main() {
         } => {
             let mut vocab = Vocabulary::new();
             let input = match input {
-                PathyString::Path(path) => std::fs::read_to_string(path).unwrap(),
+                PathyString::Path(path) => match std::fs::read_to_string(path) {
+                    Ok(contents) => contents,
+                    Err(err) => {
+                        eprintln!("Failed to load file contents: {err}");
+                        std::process::exit(1);
+                    }
+                },
                 PathyString::String(str) => str,
             };
 
             let encoded = match vocabulary_path {
-                Some(path) => {
-                    let vocab = load_vocab(&path);
-                    println!("Encoding");
-                    bpers::encode(&input, &vocab).unwrap()
-                }
+                Some(path) => match load_vocab(&path) {
+                    Ok(vocab) => {
+                        println!("Encoding");
+                        match bpers::encode(&input, &vocab) {
+                            Ok(encoded) => encoded,
+                            Err(err) => {
+                                eprintln!("Encoding failed: {err}");
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("Failed to load vocabulary: {err}");
+                        std::process::exit(1);
+                    }
+                },
                 None => {
                     println!("Learning and encoding");
                     let encoded_artifact = vocab.learn(&input, n_merges);
-                    save_vocab(&vocab, &PathBuf::from(DEFAULT_VOCAB_OUT));
+                    if let Err(err) = save_vocab(&vocab, &PathBuf::from(DEFAULT_VOCAB_OUT)) {
+                        eprintln!("Failed to save learned vocabulary: {err}");
+                    };
                     encoded_artifact
                 }
             };
@@ -138,27 +166,50 @@ fn main() {
             println!("\nInput size:   {}", input.len());
             println!("Encoded size: {}\n", encoded.len());
 
-            save_encoded(&encoded, &out);
+            if let Err(err) = save_encoded(&encoded, &out) {
+                eprintln!("Failed to save encoded data: {err}");
+            };
         }
         CliCommand::Decode {
             input,
             vocabulary_path,
             out,
         } => {
-            let input = std::fs::read_to_string(&input)
-                .unwrap()
-                .chars()
-                .map(|c| c as u32)
-                .collect::<Vec<_>>();
-            let vocab = load_vocab(&vocabulary_path);
+            let contents = match std::fs::read_to_string(input) {
+                Ok(contents) => contents,
+                Err(err) => {
+                    eprintln!("Failed to load file contents: {err}");
+                    std::process::exit(1);
+                }
+            };
+
+            let encoded = contents.chars().map(|c| c as u32).collect::<Vec<_>>();
+
+            let vocab = match load_vocab(&vocabulary_path) {
+                Ok(vocab) => vocab,
+                Err(err) => {
+                    eprintln!("Failed to load vocabulary: {err}");
+                    std::process::exit(1);
+                }
+            };
 
             println!("Decoding\n");
-            let decoded = bpers::decode(&input, &vocab).unwrap();
+            let decoded = match bpers::decode(&encoded, &vocab) {
+                Ok(decoded) => decoded,
+                Err(err) => {
+                    eprintln!("Decoding failed: {err}");
+                    std::process::exit(1);
+                }
+            };
 
             match out {
-                Some(path) => save_decoded(&decoded, &path),
+                Some(path) => {
+                    if let Err(err) = save_decoded(&decoded, &path) {
+                        eprintln!("Failed to save decoded data: {err}")
+                    }
+                }
                 None => println!("{decoded}"),
-            }
+            };
         }
         CliCommand::Example => {
             println!("Here is BPE in action!");
@@ -167,19 +218,19 @@ fn main() {
             println!("Learning input vocabulary...");
             let mut vocab = Vocabulary::new();
             _ = vocab.learn(input, 5);
-            println!("BPE performed all possible token merges (3) and we got this vocabulary:\n");
+            println!("BPE performed token merges (3) and we got this vocabulary:\n");
 
-            println!("Merge 1:  a  a  a  b  d  a  a  a  b  a  c");
-            println!("          |__|           |__|");
-            println!("            e              e\n");
+            println!("Merge 1:  [aa]abd[aa]abac");
+            println!("          |__|   |__|");
+            println!("            e      e\n");
 
-            println!("Merge 2:  e  a  b  d  e  a  b  a  c");
-            println!("             |__|        |__|");
-            println!("               f           f\n");
+            println!("Merge 2:  e[ab]e[ab]ac");
+            println!("           |__| |__|");
+            println!("             f    f\n");
 
-            println!("Merge 3:  e  f  d  e  f  a  c");
-            println!("          |__|     |__|");
-            println!("            g        g\n");
+            println!("Merge 3:  [ef]d[ef]ac");
+            println!("          |__| |__|");
+            println!("            g    g\n");
 
             let display_vocab = vocab
                 .id_to_token
@@ -205,7 +256,7 @@ fn main() {
             println!("{:#?}", display_vocab);
             println!("Final size of vocabulary:");
             println!("\tnumber of unique characters in input + amount of performed token merges");
-            println!("\t                                   4 + 3\n");
+            println!("\t                                   4 + 3 = 7\n");
             println!("Let's encode the same input using learned vocabulary");
             println!("Encoding...");
             let encoded = bpers::encode(input, &vocab).unwrap();
@@ -242,34 +293,37 @@ fn main() {
     };
 }
 
-fn save_vocab(vocab: &Vocabulary, to: &Path) {
+fn save_vocab(vocab: &Vocabulary, to: &Path) -> Result<()> {
     println!("Saving vocabulary to {}", to.display());
-    let mut file = File::create(to).unwrap();
-    _ = bincode::encode_into_std_write(vocab, &mut file, bincode::config::standard()).unwrap();
+    let mut file = File::create(to)?;
+    _ = bincode::encode_into_std_write(vocab, &mut file, bincode::config::standard())?;
+    Ok(())
 }
 
-fn load_vocab(from: &Path) -> Vocabulary {
+fn load_vocab(from: &Path) -> Result<Vocabulary> {
     println!("Loading vocabulary from {}", from.display());
-    let mut file = File::open(from).unwrap();
-    bincode::decode_from_std_read(&mut file, bincode::config::standard()).unwrap()
+    let mut file = File::open(from)?;
+    let vocab = bincode::decode_from_std_read(&mut file, bincode::config::standard())?;
+    Ok(vocab)
 }
 
-fn save_encoded(data: &[u32], to: &Path) {
+fn save_encoded(data: &[u32], to: &Path) -> Result<()> {
     println!("Saving encoded data to {}", to.display());
     let chars = data
         .iter()
         .map(|&c| char::from_u32(c).unwrap())
         .collect::<Vec<_>>();
 
-    let mut file = std::fs::File::create(to).unwrap();
+    let mut file = std::fs::File::create(to)?;
     for c in chars {
-        file.write_all(c.encode_utf8(&mut [0; 4]).as_bytes())
-            .unwrap();
+        file.write_all(c.encode_utf8(&mut [0; 4]).as_bytes())?;
     }
+    Ok(())
 }
 
-fn save_decoded(data: &str, to: &Path) {
+fn save_decoded(data: &str, to: &Path) -> Result<()> {
     println!("Saving decoded data to {}", to.display());
-    let mut file = std::fs::File::create(to).unwrap();
-    file.write_all(data.as_bytes()).unwrap();
+    let mut file = std::fs::File::create(to)?;
+    file.write_all(data.as_bytes())?;
+    Ok(())
 }
