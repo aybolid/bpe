@@ -99,8 +99,9 @@ fn main() {
                 PathyString::String(str) => str,
             };
 
+            println!("Learning");
             _ = vocab.learn(&input, n_merges);
-            println!("Learned vocabulary size: {}", vocab.id_to_token.len());
+            println!("\nLearned vocabulary size: {}", vocab.id_to_token.len());
             println!("Amount of merged tokens: {}", vocab.token_pair_to_id.len());
 
             save_vocab(&vocab, &out);
@@ -120,13 +121,19 @@ fn main() {
             let encoded = match vocabulary_path {
                 Some(path) => {
                     let vocab = load_vocab(&path);
+                    println!("Encoding");
                     bpers::encode(&input, &vocab).unwrap()
                 }
-                None => vocab.learn(&input, n_merges),
+                None => {
+                    println!("Learning and encoding");
+                    let encoded_artifact = vocab.learn(&input, n_merges);
+                    save_vocab(&vocab, &PathBuf::from(DEFAULT_VOCAB_OUT));
+                    encoded_artifact
+                }
             };
 
-            println!("Input size:   {}", input.len());
-            println!("Encoded size: {}", encoded.len());
+            println!("\nInput size:   {}", input.len());
+            println!("Encoded size: {}\n", encoded.len());
 
             save_encoded(&encoded, &out);
         }
@@ -142,6 +149,7 @@ fn main() {
                 .collect::<Vec<_>>();
             let vocab = load_vocab(&vocabulary_path);
 
+            println!("Decoding\n");
             let decoded = bpers::decode(&input, &vocab).unwrap();
 
             match out {
@@ -153,16 +161,19 @@ fn main() {
 }
 
 fn save_vocab(vocab: &Vocabulary, to: &Path) {
+    println!("Saving vocabulary to {}", to.display());
     let mut file = File::create(to).unwrap();
     _ = bincode::encode_into_std_write(vocab, &mut file, bincode::config::standard()).unwrap();
 }
 
 fn load_vocab(from: &Path) -> Vocabulary {
+    println!("Loading vocabulary from {}", from.display());
     let mut file = File::open(from).unwrap();
     bincode::decode_from_std_read(&mut file, bincode::config::standard()).unwrap()
 }
 
 fn save_encoded(data: &[u32], to: &Path) {
+    println!("Saving encoded data to {}", to.display());
     let chars = data
         .iter()
         .map(|&c| char::from_u32(c).unwrap())
@@ -176,6 +187,7 @@ fn save_encoded(data: &[u32], to: &Path) {
 }
 
 fn save_decoded(data: &str, to: &Path) {
+    println!("Saving decoded data to {}", to.display());
     let mut file = std::fs::File::create(to).unwrap();
     file.write_all(data.as_bytes()).unwrap();
 }

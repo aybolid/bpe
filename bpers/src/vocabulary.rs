@@ -1,5 +1,3 @@
-use std::time::Instant;
-
 use bincode::{Decode, Encode};
 use foldhash::{HashMap, HashMapExt};
 use indexmap::IndexMap;
@@ -57,9 +55,7 @@ impl Vocabulary {
             }
         }
 
-        for n_merge in 0..n_merges {
-            let start_time = Instant::now();
-
+        for _ in 0..n_merges {
             // index map for deterministic ordering
             let mut adjacent_pair_freq: FoldIndexMap<Pair, usize> = FoldIndexMap::default();
             for window in tokens.windows(2) {
@@ -91,16 +87,8 @@ impl Vocabulary {
 
                     tokens = updated_tokens;
                     self.next_token_id += 1;
-
-                    if (n_merge + 1) % 10 == 0 {
-                        println!("Merge #{}", n_merge + 1);
-                        println!("\tMerge took:           {:?}", start_time.elapsed());
-                        println!("\tTokenized input size: {}", tokens.len());
-                        println!("\tVocabulary size:      {}", self.id_to_token.len());
-                    }
                 }
                 _ => {
-                    println!("No pairs with frequency > 1 after {n_merge} merges, stop learning\n");
                     break;
                 }
             }
