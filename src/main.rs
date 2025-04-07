@@ -9,9 +9,12 @@ use clap::{Parser, Subcommand};
 use bpers::{self, Vocabulary};
 
 const DEFAULT_N_MERGES: u32 = 2000;
+const DEFAULT_VOCAB_OUT: &str = "vocab.bin";
+const DEFAULT_ENCODED_OUT: &str = "encoded.txt";
 
 /// BPE - byte pair encoding
 #[derive(Debug, Parser)]
+#[command(version)]
 struct Cli {
     #[command(subcommand)]
     cmd: CliCommand,
@@ -24,6 +27,9 @@ enum CliCommand {
         /// Either a string or a path to an existing text file
         #[arg(value_parser = PathyString::parse)]
         input: PathyString,
+        /// Output file for vocabulary
+        #[arg(default_value = DEFAULT_VOCAB_OUT)]
+        out: PathBuf,
         /// Max number of merges to perform during vocabulary learning
         #[arg(short = 'm', long = "merges", default_value_t = DEFAULT_N_MERGES)]
         n_merges: u32,
@@ -34,13 +40,25 @@ enum CliCommand {
         #[arg(value_parser = PathyString::parse)]
         input: PathyString,
         /// Output file for encoded text
+        #[arg(default_value = DEFAULT_ENCODED_OUT)]
         out: PathBuf,
-        /// Max number of merges to perform during vocabulary learning. Used when no vocabulary is provided
-        #[arg(short = 'm', long = "merges", default_value_t = DEFAULT_N_MERGES)]
-        n_merges: u32,
         /// A path to a vocabulary binary file
         #[arg(short = 'v', long = "vocabulary", default_value = None)]
         vocabulary_path: Option<PathBuf>,
+        /// Max number of merges to perform during vocabulary learning. Used when no vocabulary is provided
+        #[arg(short = 'm', long = "merges", default_value_t = DEFAULT_N_MERGES)]
+        n_merges: u32,
+    },
+    /// Decode using provided vocabulary
+    Decode {
+        /// Input file with encoded text
+        input: PathBuf,
+        /// A path to a vocabulary binary file
+        #[arg(short = 'v', long = "vocabulary")]
+        vocabulary_path: PathBuf,
+        /// Out for decoded text. Stdout if not provided
+        #[arg(short = 'o', long = "out", default_value = None)]
+        out: Option<PathBuf>,
     },
 }
 
@@ -70,7 +88,11 @@ impl PathyString {
 fn main() {
     let cli = Cli::parse();
     match cli.cmd {
-        CliCommand::Learn { input, n_merges } => {
+        CliCommand::Learn {
+            input,
+            out,
+            n_merges,
+        } => {
             let mut vocab = Vocabulary::new();
             let input = match input {
                 PathyString::Path(path) => std::fs::read_to_string(path).unwrap(),
@@ -81,7 +103,7 @@ fn main() {
             println!("Learned vocabulary size: {}", vocab.id_to_token.len());
             println!("Amount of merged tokens: {}", vocab.token_pair_to_id.len());
 
-            save_vocab(&vocab);
+            save_vocab(&vocab, &out);
         }
         CliCommand::Encode {
             input,
@@ -106,13 +128,32 @@ fn main() {
             println!("Input size:   {}", input.len());
             println!("Encoded size: {}", encoded.len());
 
-            save_as_txt(&encoded, &out);
+            save_encoded(&encoded, &out);
+        }
+        CliCommand::Decode {
+            input,
+            vocabulary_path,
+            out,
+        } => {
+            let input = std::fs::read_to_string(&input)
+                .unwrap()
+                .chars()
+                .map(|c| c as u32)
+                .collect::<Vec<_>>();
+            let vocab = load_vocab(&vocabulary_path);
+
+            let decoded = bpers::decode(&input, &vocab).unwrap();
+
+            match out {
+                Some(path) => save_decoded(&decoded, &path),
+                None => println!("{decoded}"),
+            }
         }
     };
 }
 
-fn save_vocab(vocab: &Vocabulary) {
-    let mut file = File::create("vocab.bin").unwrap();
+fn save_vocab(vocab: &Vocabulary, to: &Path) {
+    let mut file = File::create(to).unwrap();
     _ = bincode::encode_into_std_write(vocab, &mut file, bincode::config::standard()).unwrap();
 }
 
@@ -121,15 +162,20 @@ fn load_vocab(from: &Path) -> Vocabulary {
     bincode::decode_from_std_read(&mut file, bincode::config::standard()).unwrap()
 }
 
-fn save_as_txt(data: &[u32], out_file: &Path) {
+fn save_encoded(data: &[u32], to: &Path) {
     let chars = data
         .iter()
         .map(|&c| char::from_u32(c).unwrap())
         .collect::<Vec<_>>();
 
-    let mut file = std::fs::File::create(out_file).unwrap();
+    let mut file = std::fs::File::create(to).unwrap();
     for c in chars {
         file.write_all(c.encode_utf8(&mut [0; 4]).as_bytes())
             .unwrap();
     }
+}
+
+fn save_decoded(data: &str, to: &Path) {
+    let mut file = std::fs::File::create(to).unwrap();
+    file.write_all(data.as_bytes()).unwrap();
 }
