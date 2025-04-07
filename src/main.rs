@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
@@ -60,6 +61,8 @@ enum CliCommand {
         #[arg(short = 'o', long = "out", default_value = None)]
         out: Option<PathBuf>,
     },
+    /// Run example process to demonstrate BPE
+    Example,
 }
 
 #[derive(Debug, Clone)]
@@ -156,6 +159,85 @@ fn main() {
                 Some(path) => save_decoded(&decoded, &path),
                 None => println!("{decoded}"),
             }
+        }
+        CliCommand::Example => {
+            println!("Here is BPE in action!");
+            let input = "aaabdaaabac";
+            println!("Our input: {:?}\n", input);
+            println!("Learning input vocabulary...");
+            let mut vocab = Vocabulary::new();
+            _ = vocab.learn(input, 5);
+            println!("BPE performed all possible token merges (3) and we got this vocabulary:\n");
+
+            println!("Merge 1:  a  a  a  b  d  a  a  a  b  a  c");
+            println!("          |__|           |__|");
+            println!("            e              e\n");
+
+            println!("Merge 2:  e  a  b  d  e  a  b  a  c");
+            println!("             |__|        |__|");
+            println!("               f           f\n");
+
+            println!("Merge 3:  e  f  d  e  f  a  c");
+            println!("          |__|     |__|");
+            println!("            g        g\n");
+
+            let display_vocab = vocab
+                .id_to_token
+                .iter()
+                .map(|(id, token)| {
+                    (
+                        char::from_u32(*id).unwrap(),
+                        match token {
+                            bpers::Token::Pair(pair) => {
+                                format!(
+                                    "{}{}",
+                                    char::from_u32(pair.left).unwrap(),
+                                    char::from_u32(pair.right).unwrap()
+                                )
+                            }
+                            bpers::Token::Lonely(lone) => {
+                                char::from_u32(lone.0).unwrap().to_string()
+                            }
+                        },
+                    )
+                })
+                .collect::<HashMap<_, _>>();
+            println!("{:#?}", display_vocab);
+            println!("Final size of vocabulary:");
+            println!("\tnumber of unique characters in input + amount of performed token merges");
+            println!("\t                                   4 + 3\n");
+            println!("Let's encode the same input using learned vocabulary");
+            println!("Encoding...");
+            let encoded = bpers::encode(input, &vocab).unwrap();
+            println!("Encoded input:");
+            println!("\t{:?}", encoded);
+            println!("\tor");
+            println!(
+                "\t{:?}\n",
+                encoded
+                    .iter()
+                    .map(|id| char::from_u32(*id).unwrap())
+                    .collect::<Vec<_>>()
+            );
+            println!(
+                "Encoded size ({}) < Input size ({})\n",
+                encoded.len(),
+                input.len()
+            );
+
+            println!("We have vocabulary and data encoded using it.");
+            println!("Lets decode encoded!");
+            println!("Decoding...");
+            let decoded = bpers::decode(&encoded, &vocab).unwrap();
+            println!("Done! Here is the result:");
+            println!(
+                "\t{} -> {decoded}\n",
+                encoded
+                    .iter()
+                    .map(|id| char::from_u32(*id).unwrap())
+                    .collect::<String>()
+            );
+            println!("WOW! We got our input back!")
         }
     };
 }
